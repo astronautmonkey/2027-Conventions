@@ -67,12 +67,15 @@
   .mk.on circle.ring{opacity:1}
   .mk.on circle.dot{stroke-width:2.4}
   .mk text{
-    font-family:var(--sans);font-size:19px;font-weight:600;
-    fill:var(--ink-2);paint-order:stroke;stroke:var(--panel);stroke-width:4.5px;
-    pointer-events:none;transition:fill .15s ease;
+    font-family:var(--sans);font-size:38px;font-weight:600;
+    fill:var(--ink-2);paint-order:stroke;stroke:var(--panel);stroke-width:8px;
+    transition:fill .15s ease,opacity .18s ease;
+    pointer-events:none;
   }
   .mk.on text,.mk:hover text{fill:var(--ink)}
-  .mk.on text{font-size:23px}
+  .mk.on text{font-size:46px}
+  .mk.lblOff text{opacity:0}
+  .mk.lblOff:hover text{opacity:1}
   .mk:focus{outline:none}
   .mk:focus-visible circle.ring{opacity:1;stroke-dasharray:4 3}
   @keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
@@ -331,11 +334,28 @@ D.forEach((o,i)=>{
       <circle class="ring" r="13"/>
       <circle class="dot" r="7.5" fill="${tcol(o.hiF)}"/>
       <circle class="hit" r="22"/>
-      <text x="${L?-14:14}" y="7" text-anchor="${L?'end':'start'}">${o.city}</text>
+      <text x="${L?-26:26}" y="13" text-anchor="${L?'end':'start'}">${o.city}</text>
     </g>
   </g>`;
 });
 svg.innerHTML=s;
+
+/* ---- label decluttering: at big type, hide labels that would collide,
+       and let them reappear as the map is zoomed in ---- */
+const LBL=D.map(o=>{
+  const g=document.getElementById('mk'+o.n);
+  return {n:o.n, g, x:+g.dataset.x, y:+g.dataset.y, b:g.querySelector('text').getBBox()};
+});
+function declutter(k){
+  const pad=5*k, boxes=[];
+  [...LBL].sort((a,b)=>(b.n===cur)-(a.n===cur)||a.n-b.n).forEach(L=>{
+    const x=L.x+k*L.b.x-pad, y=L.y+k*L.b.y-pad,
+          w=k*L.b.width+2*pad, ht=k*L.b.height+2*pad;
+    const hits=boxes.some(B=>x<B.x+B.w&&x+w>B.x&&y<B.y+B.h&&y+ht>B.y);
+    if(hits&&L.n!==cur){L.g.classList.add('lblOff');}
+    else{L.g.classList.remove('lblOff');boxes.push({x,y,w,h:ht});}
+  });
+}
 
 /* ---- state ---- */
 let cur=null, sort='date';
@@ -400,6 +420,7 @@ function select(n,fromMap){
     it.querySelector('.row').setAttribute('aria-expanded',on);
   });
   document.querySelectorAll('.mk').forEach(g=>g.classList.toggle('on', +g.id.slice(2)===cur));
+  if(mapView)mapView.relabel();
   if(fromMap){
     if(cur){
       const it=listEl.querySelector(`.item[data-n="${cur}"]`);
@@ -458,6 +479,7 @@ mapView=(function(){
     document.querySelectorAll('.mk').forEach(g=>{
       g.setAttribute('transform',`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`);
     });
+    declutter(k);
     resetBtn.style.display = vw < VB*0.98 ? 'block' : 'none';
   }
 
@@ -555,6 +577,7 @@ mapView=(function(){
 
   apply();
   return {
+    relabel(){ declutter(vw/VB); },
     focus(x,y){ const tw=VB/3.4; tween(x-tw/2, y-tw/2, tw); },
     reset(){ tween(0,0,VB); }
   };
